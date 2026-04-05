@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocketHub } from '../kernel/ws-hub.js';
+import { BundleWatcher } from '../kernel/bundle-watcher.js';
 
 // Mock EventBus that supports onAny
 function createMockEventBus() {
@@ -218,5 +219,53 @@ describe('WebSocketHub - channel auth', () => {
 
     assert.ok(clientData.channels.has('workspace:ws-1'), 'client should be subscribed when no auth required');
     assert.equal(ws.sent.length, 0, 'no rejection message should be sent');
+  });
+});
+
+describe('BundleWatcher - __torque_reload WebSocket notification', () => {
+  it('BundleWatcher sends __torque_reload to all connected clients', async () => {
+    const registry = { reloadBundle: async () => 'ok' };
+    const ws1 = createMockWs();
+    ws1.readyState = 1;
+    const ws2 = createMockWs();
+    ws2.readyState = 1;
+    const wsHub = { clients: new Map([[ws1, {}], [ws2, {}]]) };
+    const watcher = new BundleWatcher(registry, { wsHub, silent: true });
+
+    await watcher._reloadBundle('tasks');
+
+    assert.equal(ws1.sent.length, 1, 'ws1 should receive exactly one message');
+    assert.equal(ws1.sent[0].type, '__torque_reload');
+    assert.equal(ws1.sent[0].bundle, 'tasks');
+    assert.ok(typeof ws1.sent[0].timestamp === 'number', 'should have a numeric timestamp');
+
+    assert.equal(ws2.sent.length, 1, 'ws2 should receive exactly one message');
+    assert.equal(ws2.sent[0].type, '__torque_reload');
+    assert.equal(ws2.sent[0].bundle, 'tasks');
+    assert.ok(typeof ws2.sent[0].timestamp === 'number', 'should have a numeric timestamp');
+  });
+
+  it('notification is not sent when wsHub is not provided', async () => {
+    const registry = { reloadBundle: async () => 'ok' };
+    const watcher = new BundleWatcher(registry, { silent: true });
+
+    await assert.doesNotReject(() => watcher._reloadBundle('tasks'));
+  });
+
+  it('notification handles client send errors gracefully', async () => {
+    const registry = { reloadBundle: async () => 'ok' };
+
+    const brokenWs = { readyState: 1, sent: [], send() { throw new Error('connection closed'); } };
+    const healthyWs = createMockWs();
+    healthyWs.readyState = 1;
+
+    const wsHub = { clients: new Map([[brokenWs, {}], [healthyWs, {}]]) };
+    const watcher = new BundleWatcher(registry, { wsHub, silent: true });
+
+    await watcher._reloadBundle('tasks');
+
+    assert.equal(healthyWs.sent.length, 1, 'healthy client should receive the message despite broken client');
+    assert.equal(healthyWs.sent[0].type, '__torque_reload');
+    assert.equal(healthyWs.sent[0].bundle, 'tasks');
   });
 });
