@@ -16,3 +16,4 @@ export { Intent } from './idd/Intent.js';
 export { Behavior } from './idd/Behavior.js';
 export { Context } from './idd/Context.js';
 export { AgentRouter } from './idd/AgentRouter.js';
+export { ClaudeRuntime } from './idd/claude-runtime.js';
