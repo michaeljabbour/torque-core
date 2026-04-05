@@ -108,7 +108,7 @@ export class ClaudeRuntime {
       const required = [];
 
       for (const field of iface.input || []) {
-        properties[field.name] = { type: this._mapType(field.type) };
+        properties[field.name] = { type: ClaudeRuntime._mapType(field.type) };
         if (field.description) {
           properties[field.name].description = field.description;
         }
@@ -134,7 +134,7 @@ export class ClaudeRuntime {
    * @param {string} type
    * @returns {string}
    */
-  _mapType(type) {
+  static _mapType(type) {
     switch (type) {
       case 'string':
       case 'uuid':
@@ -201,6 +201,7 @@ export class ClaudeRuntime {
       } else if (event.type === 'tool_use') {
         // Tool name format: bundle__ifaceName
         const doubleUnderscoreIdx = event.name.indexOf('__');
+        if (doubleUnderscoreIdx === -1) continue; // not a torque tool name
         const bundle = event.name.slice(0, doubleUnderscoreIdx);
         const name = event.name.slice(doubleUnderscoreIdx + 2);
 
