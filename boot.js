@@ -196,8 +196,9 @@ export async function boot(opts) {
     await new Promise((resolve, reject) => {
       const tryPort = (p) => {
         const server = app.listen(p, '0.0.0.0', () => {
-          log(`  ${c.green('→')} ${c.bold(`http://localhost:${p}`)}`);
-          actualPort = p;
+          actualPort = server.address().port;
+          log(`  ${c.green('→')} ${c.bold(`http://localhost:${actualPort}`)}`);
+          
           httpServer = server;
           resolve();
         });
@@ -243,6 +244,7 @@ export async function boot(opts) {
     log();
 
     result.app = app;
+    result.httpServer = httpServer;
     result.port = actualPort;
   }
 
