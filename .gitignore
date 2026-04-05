@@ -1,0 +1,12 @@
+node_modules/
+data/
+.bundles/
+bundle.lock
+*.sqlite3
+.DS_Store
+.env
+.env.*
+.torque/
+.tmp-test-deps/
+*.tmp
+dist/
