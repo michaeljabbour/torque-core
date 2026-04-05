@@ -198,3 +198,24 @@ describe('AgentRouter', () => {
     );
   });
 });
+
+// ─── AgentRouter with embeddings ────────────────────────────────────────────
+
+describe('AgentRouter with embeddings', () => {
+  it('stores embeddingService when passed to constructor', () => {
+    const registry = buildMockRegistry();
+    const runtime = buildMockRuntime();
+    const hookBus = buildMockHookBus();
+    const mockEmbeddingService = { search: async () => [] };
+    const router = new AgentRouter({ registry, runtime, hookBus, embeddingService: mockEmbeddingService });
+    assert.strictEqual(router._embeddingService, mockEmbeddingService);
+  });
+
+  it('defaults embeddingService to null when not provided', () => {
+    const registry = buildMockRegistry();
+    const runtime = buildMockRuntime();
+    const hookBus = buildMockHookBus();
+    const router = new AgentRouter({ registry, runtime, hookBus });
+    assert.strictEqual(router._embeddingService, null);
+  });
+});

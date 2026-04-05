@@ -129,7 +129,21 @@ export async function boot(opts) {
   log();
   log(`  ${c.dim(`${bundles.length} bundles  ${totalRoutes} routes  ${totalEvents} subscriptions`)}`);
 
+  // 3c. Optional embedding service (from mount plan embeddings config)
+  let embeddingService = null;
+  const embeddingsConfig = registry.mountPlan?.embeddings;
+  if (embeddingsConfig) {
+    try {
+      const { EmbeddingService } = await import('@torquedev/ext-embeddings');
+      embeddingService = EmbeddingService.create(embeddingsConfig, dataLayer.db);
+      log(`  ${c.dim('[embeddings]')} Embedding service enabled`);
+    } catch (e) {
+      log(`  ${c.dim('[embeddings]')} Disabled (${e.message})`);
+    }
+  }
+
   const result = { registry, dataLayer, eventBus, hookBus };
+  result.embeddingService = embeddingService;
 
   // 4. Optionally start HTTP server
   if (serve) {
@@ -154,7 +168,7 @@ export async function boot(opts) {
       const runtime = await ClaudeRuntime.create();
       if (runtime._sdk) {
         const { AgentRouter } = await import('./idd/AgentRouter.js');
-        agentRouter = new AgentRouter({ registry, runtime, hookBus });
+        agentRouter = new AgentRouter({ registry, runtime, hookBus, embeddingService });
         log(`  ${c.dim('[agent]')} Agent runtime enabled`);
       }
     } catch (e) {
@@ -168,6 +182,7 @@ export async function boot(opts) {
       authResolver: effectiveAuthResolver,
       silent: true,
       agentRouter,
+      embeddingService,
     });
 
     // Mount shell middleware (e.g. React SPA) after API routes
