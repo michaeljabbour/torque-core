@@ -147,7 +147,7 @@ export async function boot(opts) {
       log(`  ${c.dim('[auto-auth]')} Using IAM bundle for JWT authentication`);
     }
 
-    const app = createServer(registry, eventBus, {
+    const app = await createServer(registry, eventBus, {
       frontendDir,
       hookBus,
       authResolver: effectiveAuthResolver,
