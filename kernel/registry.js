@@ -518,17 +518,13 @@ export class Registry {
     }
 
     // Remove declared events registered by this bundle
-    if (this.eventBus._declaredEvents) {
-      this.eventBus._declaredEvents.delete(name);
+    if (this.eventBus.unregisterDeclaredEvents) {
+      this.eventBus.unregisterDeclaredEvents(name);
     }
 
     // Remove event schemas registered by this bundle
-    if (this.eventBus._eventSchemas) {
-      for (const [eventName, schema] of this.eventBus._eventSchemas) {
-        if (schema.bundle === name) {
-          this.eventBus._eventSchemas.delete(eventName);
-        }
-      }
+    if (this.eventBus.unregisterEventSchemas) {
+      this.eventBus.unregisterEventSchemas(name);
     }
 
     // Remove agents registered by this bundle
@@ -543,6 +539,7 @@ export class Registry {
   /**
    * Unload a bundle then re-import it with ESM cache-busting and re-register.
    * Returns true if reloaded, false if bundle not found.
+   * If loadBundle throws, the bundle remains unloaded (no rollback to prior state).
    */
   async reloadBundle(name) {
     if (!this.bundles[name]) return false;

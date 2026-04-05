@@ -20,6 +20,8 @@ function createMockEventBus() {
     _validationMode: 'warn',
     _declaredEvents: new Map(),
     _unsubscribedBundles: [],
+    _unregisteredDeclaredEvents: [],
+    _unregisteredEventSchemas: [],
     setValidationMode(mode) { this._validationMode = mode; },
     registerDeclaredEvents(name, events) { this._declaredEvents.set(name, events); },
     registerEventSchemas() {},
@@ -27,6 +29,8 @@ function createMockEventBus() {
     subscribe() {},
     subscriptions() { return {}; },
     unsubscribeBundle(bundleName) { this._unsubscribedBundles.push(bundleName); },
+    unregisterDeclaredEvents(bundleName) { this._unregisteredDeclaredEvents.push(bundleName); },
+    unregisterEventSchemas(bundleName) { this._unregisteredEventSchemas.push(bundleName); },
   };
 }
 
@@ -58,6 +62,22 @@ describe('ScopedCoordinator', () => {
 
 describe('Registry', () => {
   let registry, dataLayer, eventBus;
+
+  // Shared helper: manually seed registry state as if loadBundle() had run.
+  // Includes config, two interfaces, and one agent so both unloadBundle and
+  // reloadBundle test suites can share this without duplication.
+  function seedBundle(name) {
+    registry.bundles[name] = {
+      manifest: { version: '1.0.0', events: {} },
+      instance: {},
+      config: { key: 'val' },
+      dir: `/bundles/${name}`,
+      intents: {},
+    };
+    registry.interfaces[`${name}.doThing`] = async () => ({ ok: true });
+    registry.interfaces[`${name}.otherMethod`] = async () => ({ ok: true });
+    registry._agents.push({ meta: { name: `${name} agent` }, body: 'test', bundle: name });
+  }
 
   beforeEach(() => {
     dataLayer = createMockDataLayer();
@@ -119,21 +139,6 @@ describe('Registry', () => {
   });
 
   describe('unloadBundle()', () => {
-    function seedBundle(name) {
-      // Manually seed registry state as if loadBundle() had run
-      registry.bundles[name] = {
-        manifest: { version: '1.0.0', events: {} },
-        instance: {},
-        config: {},
-        dir: `/bundles/${name}`,
-        intents: {},
-      };
-      registry.interfaces[`${name}.doThing`] = async () => ({ ok: true });
-      registry.interfaces[`${name}.otherMethod`] = async () => ({ ok: true });
-      // Add an agent associated with this bundle
-      registry._agents.push({ meta: { name: `${name} agent` }, body: 'test', bundle: name });
-    }
-
     it('removes bundle from this.bundles', () => {
       seedBundle('alpha');
       assert.ok(registry.bundles['alpha'], 'alpha should exist before unload');
@@ -162,6 +167,22 @@ describe('Registry', () => {
       assert.ok(eventBus._unsubscribedBundles.includes('alpha'), 'eventBus.unsubscribeBundle should be called with alpha');
     });
 
+    it('calls eventBus.unregisterDeclaredEvents with the bundle name', () => {
+      seedBundle('alpha');
+
+      registry.unloadBundle('alpha');
+
+      assert.ok(eventBus._unregisteredDeclaredEvents.includes('alpha'), 'eventBus.unregisterDeclaredEvents should be called with alpha');
+    });
+
+    it('calls eventBus.unregisterEventSchemas with the bundle name', () => {
+      seedBundle('alpha');
+
+      registry.unloadBundle('alpha');
+
+      assert.ok(eventBus._unregisteredEventSchemas.includes('alpha'), 'eventBus.unregisterEventSchemas should be called with alpha');
+    });
+
     it('returns false for a bundle that does not exist', () => {
       const result = registry.unloadBundle('nonexistent');
       assert.equal(result, false);
@@ -180,17 +201,6 @@ describe('Registry', () => {
   });
 
   describe('reloadBundle()', () => {
-    function seedBundle(name) {
-      registry.bundles[name] = {
-        manifest: { version: '1.0.0', events: {} },
-        instance: {},
-        config: { key: 'val' },
-        dir: `/bundles/${name}`,
-        intents: {},
-      };
-      registry.interfaces[`${name}.doThing`] = async () => ({ ok: true });
-    }
-
     it('returns false for a bundle that does not exist', async () => {
       const result = await registry.reloadBundle('nonexistent');
       assert.equal(result, false);
