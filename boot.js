@@ -188,6 +188,7 @@ export async function boot(opts) {
       const { WebSocketHub } = await import('./kernel/ws-hub.js');
       const wsHub = new WebSocketHub(eventBus, { authResolver: effectiveAuthResolver });
       await wsHub.handleUpgrade(httpServer);
+      registry.wireRealtimeChannels(wsHub);
       result.wsHub = wsHub;
       log(`  ${c.dim('[websocket]')} Real-time push enabled at /__torque_ws`);
     } catch (e) {

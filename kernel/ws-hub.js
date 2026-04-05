@@ -2,8 +2,13 @@
  * B5: WebSocket Hub — broadcasts EventBus events to connected clients.
  * Clients subscribe to channels (e.g., 'board:<id>') and receive real-time updates.
  *
+ * Channel routing is driven by bundle manifest `realtime:` declarations registered
+ * via registerChannels(). Events are only broadcast to channels whose declared
+ * event patterns match the fired event.
+ *
  * Usage:
  *   const hub = new WebSocketHub(eventBus);
+ *   hub.registerChannels('kanban', manifest.realtime.channels);
  *   hub.handleUpgrade(server); // attach to HTTP server
  *
  * Client connects: ws://host:port/__torque_ws
@@ -16,12 +21,25 @@ export class WebSocketHub {
     this.channels = new Map(); // channelName → Set<ws>
     this.eventBus = eventBus;
     this.authResolver = authResolver;
+    this._channelDefs = []; // { bundle, name, events, auth } objects from manifests
 
     // Subscribe to all events and broadcast to relevant channels
     if (eventBus?.onAny) {
       eventBus.onAny((eventName, payload) => {
         this._broadcast(eventName, payload);
       });
+    }
+  }
+
+  /**
+   * Register channel declarations from a bundle manifest's realtime.channels array.
+   * Each entry: { name, events, auth }
+   * @param {string} bundleName
+   * @param {Array<{name: string, events: string[], auth: string|null}>} channels
+   */
+  registerChannels(bundleName, channels) {
+    for (const ch of channels) {
+      this._channelDefs.push({ bundle: bundleName, name: ch.name, events: ch.events, auth: ch.auth });
     }
   }
 
@@ -102,23 +120,63 @@ export class WebSocketHub {
     ws.send(JSON.stringify({ type: 'connected', clientCount: this.clients.size }));
   }
 
+  /**
+   * Broadcast an event to all subscribed clients whose channel declarations match.
+   * Routing is driven by registered _channelDefs from bundle manifests.
+   * If no declarations are registered, nothing is broadcast.
+   */
   _broadcast(eventName, payload) {
-    // Determine channel from event payload (board_id, workspace_id, etc.)
-    const channelKeys = [];
-    if (payload?.board_id) channelKeys.push('board:' + payload.board_id);
-    if (payload?.workspace_id) channelKeys.push('workspace:' + payload.workspace_id);
-    // Also broadcast to a global channel
-    channelKeys.push('*');
+    if (this._channelDefs.length === 0) return;
 
     const msg = JSON.stringify({ type: 'event', event: eventName, data: payload });
+    const sent = new Set(); // track (channelName, ws) pairs to avoid duplicates
 
-    for (const ch of channelKeys) {
-      const subs = this.channels.get(ch);
+    for (const def of this._channelDefs) {
+      if (!this._eventMatchesPatterns(eventName, def.events)) continue;
+
+      const channelName = this._resolveChannelName(def.name, payload);
+      const subs = this.channels.get(channelName);
       if (!subs) continue;
+
       for (const ws of subs) {
+        const key = `${channelName}::${ws}`;
+        if (sent.has(key)) continue;
+        sent.add(key);
         try { ws.send(msg); } catch {}
       }
     }
+  }
+
+  /**
+   * Check if an event name matches any of the declared patterns.
+   * Supports exact matches and wildcard patterns ending with '.*'.
+   * @param {string} eventName
+   * @param {string[]} patterns
+   * @returns {boolean}
+   */
+  _eventMatchesPatterns(eventName, patterns) {
+    for (const pattern of patterns) {
+      if (pattern === '*') return true;
+      if (pattern.endsWith('.*')) {
+        const prefix = pattern.slice(0, -2); // strip '.*'
+        if (eventName === prefix || eventName.startsWith(prefix + '.')) return true;
+      } else {
+        if (eventName === pattern) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Resolve a channel name template using payload fields.
+   * e.g. 'board:{board_id}' + { board_id: 'abc-123' } => 'board:abc-123'
+   * The global '*' channel resolves to '*' as-is.
+   * @param {string} template
+   * @param {object} payload
+   * @returns {string}
+   */
+  _resolveChannelName(template, payload) {
+    return template.replace(/\{(\w+)\}/g, (_, key) => payload?.[key] ?? `{${key}}`);
   }
 
   /** Get connected client count */

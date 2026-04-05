@@ -483,6 +483,21 @@ export class Registry {
   bundleDir(name) { return this.bundles[name]?.dir || this._lazyBundles[name]?.dir; }
 
   /**
+   * Wire realtime channel declarations from all loaded bundle manifests into the WebSocketHub.
+   * Iterates over loaded bundles and calls wsHub.registerChannels() for each manifest's
+   * realtime.channels array.
+   * @param {object} wsHub - WebSocketHub instance
+   */
+  wireRealtimeChannels(wsHub) {
+    for (const [bundleName, bundleData] of Object.entries(this.bundles)) {
+      const channels = bundleData.manifest.realtime?.channels;
+      if (channels?.length) {
+        wsHub.registerChannels(bundleName, channels);
+      }
+    }
+  }
+
+  /**
    * Item 8: Create a spawned coordinator scoped to a single target bundle.
    */
   createSpawnedCoordinator(parentBundle, targetBundle) {
