@@ -555,10 +555,12 @@ export class Registry {
 
     this.unloadBundle(name);
 
-    await this.loadBundle(name, config, dir, { cacheBust: true });
-
-    // Restore lock data
-    this._lockData = savedLockData;
+    try {
+      await this.loadBundle(name, config, dir, { cacheBust: true });
+    } finally {
+      // Restore lock data even if loadBundle throws
+      this._lockData = savedLockData;
+    }
 
     // Re-wire event subscriptions
     if (this.bundles[name]?.instance?.setupSubscriptions) {

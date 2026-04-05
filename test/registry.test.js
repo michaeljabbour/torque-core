@@ -178,4 +178,76 @@ describe('Registry', () => {
       assert.equal(agentsAfter.length, 0, 'agents for alpha should be removed');
     });
   });
+
+  describe('reloadBundle()', () => {
+    function seedBundle(name) {
+      registry.bundles[name] = {
+        manifest: { version: '1.0.0', events: {} },
+        instance: {},
+        config: { key: 'val' },
+        dir: `/bundles/${name}`,
+        intents: {},
+      };
+      registry.interfaces[`${name}.doThing`] = async () => ({ ok: true });
+    }
+
+    it('returns false for a bundle that does not exist', async () => {
+      const result = await registry.reloadBundle('nonexistent');
+      assert.equal(result, false);
+    });
+
+    it('happy path: re-registers bundle and returns true', async () => {
+      seedBundle('alpha');
+      // Mock loadBundle to re-seed the bundle (simulating successful reimport)
+      registry.loadBundle = async (name, config, dir, opts) => {
+        registry.bundles[name] = {
+          manifest: { version: '1.0.0', events: {} },
+          instance: {},
+          config,
+          dir,
+          intents: {},
+        };
+      };
+
+      const result = await registry.reloadBundle('alpha');
+
+      assert.equal(result, true, 'reloadBundle should return true on success');
+      assert.ok(registry.bundles['alpha'], 'bundle should be present after reload');
+    });
+
+    it('calls loadBundle with cacheBust: true', async () => {
+      seedBundle('alpha');
+      let capturedOpts;
+      registry.loadBundle = async (name, config, dir, opts) => {
+        capturedOpts = opts;
+        registry.bundles[name] = { manifest: {}, instance: {}, config, dir, intents: {} };
+      };
+
+      await registry.reloadBundle('alpha');
+
+      assert.deepEqual(capturedOpts, { cacheBust: true }, 'loadBundle should be called with cacheBust: true');
+    });
+
+    it('restores _lockData after loadBundle throws', async () => {
+      seedBundle('alpha');
+      const originalLockData = { hash: 'abc123', ts: Date.now() };
+      registry._lockData = originalLockData;
+
+      registry.loadBundle = async () => {
+        throw new Error('load failed — syntax error in logic.js');
+      };
+
+      await assert.rejects(
+        () => registry.reloadBundle('alpha'),
+        /load failed/,
+        'reloadBundle should propagate the loadBundle error'
+      );
+
+      assert.equal(
+        registry._lockData,
+        originalLockData,
+        '_lockData must be restored to original value after loadBundle throws'
+      );
+    });
+  });
 });
