@@ -227,6 +227,19 @@ export async function boot(opts) {
       log(`  ${c.dim('[websocket]')} Disabled (${e.message})`);
     }
 
+    // Hot reload: watch bundle directories and reload on file changes
+    if (process.env.HOT_RELOAD === '1') {
+      try {
+        const { BundleWatcher } = await import('./kernel/bundle-watcher.js');
+        const watcher = new BundleWatcher(registry, { wsHub: result.wsHub });
+        watcher.start();
+        result.watcher = watcher;
+        log(`  ${c.dim('[hot-reload]')} Bundle hot reload enabled`);
+      } catch (e) {
+        log(`  ${c.dim('[hot-reload]')} Disabled (${e.message})`);
+      }
+    }
+
     log();
 
     result.app = app;
