@@ -48,6 +48,10 @@ describe('ClaudeRuntime', () => {
       assert.ok(prompt.includes('id'), 'should include id field');
       assert.ok(prompt.includes('name'), 'should include name field');
       assert.ok(prompt.includes('email'), 'should include email field');
+      assert.ok(
+        prompt.includes('Semantic/vectorized fields: name, email'),
+        'should include vectorized fields line'
+      );
     });
   });
 

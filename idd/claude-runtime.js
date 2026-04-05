@@ -5,6 +5,8 @@
  * and execute() throws a clear error.
  */
 export class ClaudeRuntime {
+  /** Separator used to join bundle and interface name in Claude tool names. */
+  static TOOL_NAME_SEPARATOR = '__';
   /**
    * @param {object} param0
    * @param {object|null} param0.sdk - The @anthropic-ai/claude-agent-sdk module, or null
@@ -108,7 +110,7 @@ export class ClaudeRuntime {
       const required = [];
 
       for (const field of iface.input || []) {
-        properties[field.name] = { type: ClaudeRuntime._mapType(field.type) };
+        properties[field.name] = { type: ClaudeRuntime._toJsonSchemaType(field.type) };
         if (field.description) {
           properties[field.name].description = field.description;
         }
@@ -118,7 +120,7 @@ export class ClaudeRuntime {
       }
 
       return {
-        name: `${iface.bundle}__${iface.name}`,
+        name: `${iface.bundle}${ClaudeRuntime.TOOL_NAME_SEPARATOR}${iface.name}`,
         description: iface.description,
         input_schema: {
           type: 'object',
@@ -130,11 +132,11 @@ export class ClaudeRuntime {
   }
 
   /**
-   * Maps Torque types to JSON Schema types.
-   * @param {string} type
-   * @returns {string}
+   * Maps Torque field types to JSON Schema primitive types.
+   * @param {string} type - A Torque type (e.g. 'uuid', 'float', 'timestamp')
+   * @returns {string} The corresponding JSON Schema type
    */
-  static _mapType(type) {
+  static _toJsonSchemaType(type) {
     switch (type) {
       case 'string':
       case 'uuid':
@@ -199,15 +201,16 @@ export class ClaudeRuntime {
       if (event.type === 'text') {
         outputs.push(event.text);
       } else if (event.type === 'tool_use') {
-        // Tool name format: bundle__ifaceName
-        const doubleUnderscoreIdx = event.name.indexOf('__');
-        if (doubleUnderscoreIdx === -1) continue; // not a torque tool name
-        const bundle = event.name.slice(0, doubleUnderscoreIdx);
-        const name = event.name.slice(doubleUnderscoreIdx + 2);
+        // Tool name format: bundle{TOOL_NAME_SEPARATOR}ifaceName
+        const sepIdx = event.name.indexOf(ClaudeRuntime.TOOL_NAME_SEPARATOR);
+        if (sepIdx === -1) continue; // not a torque tool name
+        const bundle = event.name.slice(0, sepIdx);
+        const name = event.name.slice(sepIdx + ClaudeRuntime.TOOL_NAME_SEPARATOR.length);
 
         const iface = tools.find((t) => t.bundle === bundle && t.name === name);
 
         if (opts.toolExecutor && iface) {
+          // Result intentionally not collected — only text events contribute to output.
           await opts.toolExecutor(bundle, iface, event.input);
         }
       }
