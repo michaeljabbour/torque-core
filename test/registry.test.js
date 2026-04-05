@@ -19,12 +19,14 @@ function createMockEventBus() {
   return {
     _validationMode: 'warn',
     _declaredEvents: new Map(),
+    _unsubscribedBundles: [],
     setValidationMode(mode) { this._validationMode = mode; },
     registerDeclaredEvents(name, events) { this._declaredEvents.set(name, events); },
     registerEventSchemas() {},
     subscribers: new Map(),
     subscribe() {},
     subscriptions() { return {}; },
+    unsubscribeBundle(bundleName) { this._unsubscribedBundles.push(bundleName); },
   };
 }
 
@@ -113,6 +115,67 @@ describe('Registry', () => {
     });
     it('bundleManifest() returns undefined for unloaded bundle', () => {
       assert.equal(registry.bundleManifest('nonexistent'), undefined);
+    });
+  });
+
+  describe('unloadBundle()', () => {
+    function seedBundle(name) {
+      // Manually seed registry state as if loadBundle() had run
+      registry.bundles[name] = {
+        manifest: { version: '1.0.0', events: {} },
+        instance: {},
+        config: {},
+        dir: `/bundles/${name}`,
+        intents: {},
+      };
+      registry.interfaces[`${name}.doThing`] = async () => ({ ok: true });
+      registry.interfaces[`${name}.otherMethod`] = async () => ({ ok: true });
+      // Add an agent associated with this bundle
+      registry._agents.push({ meta: { name: `${name} agent` }, body: 'test', bundle: name });
+    }
+
+    it('removes bundle from this.bundles', () => {
+      seedBundle('alpha');
+      assert.ok(registry.bundles['alpha'], 'alpha should exist before unload');
+
+      registry.unloadBundle('alpha');
+
+      assert.equal(registry.bundles['alpha'], undefined, 'alpha should be removed from this.bundles');
+    });
+
+    it('removes all interfaces prefixed with bundle name', () => {
+      seedBundle('alpha');
+      assert.ok(registry.interfaces['alpha.doThing'], 'interface should exist before unload');
+      assert.ok(registry.interfaces['alpha.otherMethod'], 'interface should exist before unload');
+
+      registry.unloadBundle('alpha');
+
+      assert.equal(registry.interfaces['alpha.doThing'], undefined, 'alpha.doThing should be removed');
+      assert.equal(registry.interfaces['alpha.otherMethod'], undefined, 'alpha.otherMethod should be removed');
+    });
+
+    it('calls eventBus.unsubscribeBundle with the bundle name', () => {
+      seedBundle('alpha');
+
+      registry.unloadBundle('alpha');
+
+      assert.ok(eventBus._unsubscribedBundles.includes('alpha'), 'eventBus.unsubscribeBundle should be called with alpha');
+    });
+
+    it('returns false for a bundle that does not exist', () => {
+      const result = registry.unloadBundle('nonexistent');
+      assert.equal(result, false);
+    });
+
+    it('removes agents registered by the bundle', () => {
+      seedBundle('alpha');
+      const agentsBefore = registry._agents.filter(a => a.bundle === 'alpha');
+      assert.equal(agentsBefore.length, 1, 'should have one agent before unload');
+
+      registry.unloadBundle('alpha');
+
+      const agentsAfter = registry._agents.filter(a => a.bundle === 'alpha');
+      assert.equal(agentsAfter.length, 0, 'agents for alpha should be removed');
     });
   });
 });

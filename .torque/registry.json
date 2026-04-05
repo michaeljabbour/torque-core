@@ -1,14 +1,14 @@
 {
   "bundles": {
     "listener": {
-      "source": "/var/folders/fm/484kk_z941l3p7mghnn15cf80000gn/T/torque-bundle-1775413664627-citgb1tqu6k",
+      "source": "/var/folders/fm/484kk_z941l3p7mghnn15cf80000gn/T/torque-bundle-1775425199955-gfh2iwp4zea",
       "version": "1.0.0",
       "tables": [],
       "routeCount": 0,
       "eventCount": 0,
-      "bootDurationMs": 0,
-      "lastBooted": "2026-04-05T18:27:44.628Z"
+      "bootDurationMs": 1,
+      "lastBooted": "2026-04-05T21:39:59.956Z"
     }
   },
-  "lastBoot": "2026-04-05T18:27:44.628Z"
+  "lastBoot": "2026-04-05T21:39:59.956Z"
 }

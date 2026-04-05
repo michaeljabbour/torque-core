@@ -166,7 +166,7 @@ export class Registry {
     this._logBootSummary();
   }
 
-  async loadBundle(name, config, bundleDir) {
+  async loadBundle(name, config, bundleDir, { cacheBust = false } = {}) {
     const manifestPath = `${bundleDir}/manifest.yml`;
 
     if (!existsSync(manifestPath)) {
@@ -209,7 +209,8 @@ export class Registry {
     }
 
     const absoluteLogicPath = resolve(`${bundleDir}/logic.js`);
-    const mod = await import(absoluteLogicPath);
+    const importPath = cacheBust ? `${absoluteLogicPath}?v=${Date.now()}` : absoluteLogicPath;
+    const mod = await import(importPath);
     const BundleClass = mod.default;
     const declaredDeps = [
       ...(manifest.depends_on || []),
@@ -495,6 +496,76 @@ export class Registry {
         wsHub.registerChannels(bundleName, channels);
       }
     }
+  }
+
+  /**
+   * Tear down everything a bundle registered (interfaces, event subscriptions, agents)
+   * except database tables. Returns true if unloaded, false if bundle not found.
+   */
+  unloadBundle(name) {
+    if (!this.bundles[name]) return false;
+
+    // Remove all interfaces prefixed with the bundle name
+    for (const key of Object.keys(this.interfaces)) {
+      if (key.startsWith(`${name}.`)) {
+        delete this.interfaces[key];
+      }
+    }
+
+    // Remove event subscriptions for this bundle
+    if (this.eventBus.unsubscribeBundle) {
+      this.eventBus.unsubscribeBundle(name);
+    }
+
+    // Remove declared events registered by this bundle
+    if (this.eventBus._declaredEvents) {
+      this.eventBus._declaredEvents.delete(name);
+    }
+
+    // Remove event schemas registered by this bundle
+    if (this.eventBus._eventSchemas) {
+      for (const [eventName, schema] of this.eventBus._eventSchemas) {
+        if (schema.bundle === name) {
+          this.eventBus._eventSchemas.delete(eventName);
+        }
+      }
+    }
+
+    // Remove agents registered by this bundle
+    this._agents = this._agents.filter(a => a.bundle !== name);
+
+    // Remove the bundle entry
+    delete this.bundles[name];
+
+    return true;
+  }
+
+  /**
+   * Unload a bundle then re-import it with ESM cache-busting and re-register.
+   * Returns true if reloaded, false if bundle not found.
+   */
+  async reloadBundle(name) {
+    if (!this.bundles[name]) return false;
+
+    const { config, dir } = this.bundles[name];
+
+    // Temporarily disable hash verification during reload
+    const savedLockData = this._lockData;
+    this._lockData = null;
+
+    this.unloadBundle(name);
+
+    await this.loadBundle(name, config, dir, { cacheBust: true });
+
+    // Restore lock data
+    this._lockData = savedLockData;
+
+    // Re-wire event subscriptions
+    if (this.bundles[name]?.instance?.setupSubscriptions) {
+      this.bundles[name].instance.setupSubscriptions(this.eventBus);
+    }
+
+    return true;
   }
 
   /**
