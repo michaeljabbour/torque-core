@@ -56,10 +56,13 @@ function buildMockHookBus() {
 
 // ─── Mock Runtime ────────────────────────────────────────────────────────────
 
-function buildMockRuntime(overrideResult = null) {
+function buildMockRuntime() {
   return {
-    execute: async (_intent, _contextData, _toolDeclarations, _opts) =>
-      overrideResult ?? { status: 'success', output: 'done', trace: ['t1', 't2'] },
+    execute: async (_intent, _contextData, _toolDeclarations, _opts) => ({
+      status: 'success',
+      output: 'done',
+      trace: ['t1', 't2'],
+    }),
   };
 }
 
@@ -126,6 +129,21 @@ describe('AgentRouter', () => {
     assert.equal(received.context.bundle, 'orders');
     assert.equal(received.context.intent.name, 'ProcessOrder');
     assert.deepEqual(received.context.input, { foo: 'bar' });
+  });
+
+  it('emits idd:executing', async () => {
+    const registry = buildMockRegistry();
+    const runtime = buildMockRuntime();
+    const hookBus = buildMockHookBus();
+    const router = new AgentRouter({ registry, runtime, hookBus });
+
+    await router.execute('orders', 'ProcessOrder', { foo: 'bar' });
+
+    const executing = hookBus.emitted.find((e) => e.position === 'idd:executing');
+    assert.ok(executing, 'should emit idd:executing');
+    assert.equal(executing.context.bundle, 'orders');
+    assert.equal(executing.context.intent.name, 'ProcessOrder');
+    assert.equal(executing.context.toolCount, 1);
   });
 
   it('emits idd:resolved on success', async () => {

@@ -114,14 +114,15 @@ export class AgentRouter {
       });
     }
 
-    // 7. Tool executor: delegates calls through the coordinator
+    // 7a. Build tool executor: delegates calls through the coordinator
     const toolExecutor = async (bundle, iface, args) => {
+      // runtime may pass an interface object or a plain string; normalise to string
       const ifaceName = typeof iface === 'string' ? iface : iface.name;
       return coordinator.call(bundle, ifaceName, args);
     };
 
     try {
-      // 7. Call runtime
+      // 7b. Call runtime
       const result = await this._runtime.execute(intent, contextData, toolDeclarations, {
         toolExecutor,
         maxTurns: 10,
