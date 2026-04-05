@@ -149,7 +149,6 @@ export async function boot(opts) {
 
     // B6: Agent runtime (IDD) — conditional on Claude SDK availability
     let agentRouter = null;
-    let embeddingService = null;
     try {
       const { ClaudeRuntime } = await import('./idd/claude-runtime.js');
       const runtime = await ClaudeRuntime.create();
@@ -169,7 +168,6 @@ export async function boot(opts) {
       authResolver: effectiveAuthResolver,
       silent: true,
       agentRouter,
-      embeddingService,
     });
 
     // Mount shell middleware (e.g. React SPA) after API routes
