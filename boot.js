@@ -147,11 +147,29 @@ export async function boot(opts) {
       log(`  ${c.dim('[auto-auth]')} Using IAM bundle for JWT authentication`);
     }
 
+    // B6: Agent runtime (IDD) — conditional on Claude SDK availability
+    let agentRouter = null;
+    let embeddingService = null;
+    try {
+      const { ClaudeRuntime } = await import('./idd/claude-runtime.js');
+      const runtime = await ClaudeRuntime.create();
+      if (runtime._sdk) {
+        const { AgentRouter } = await import('./idd/AgentRouter.js');
+        agentRouter = new AgentRouter({ registry, runtime, hookBus });
+        log(`  ${c.dim('[agent]')} Agent runtime enabled`);
+      }
+    } catch (e) {
+      // Agent runtime not available — continue without it
+    }
+    result.agentRouter = agentRouter;
+
     const app = await createServer(registry, eventBus, {
       frontendDir,
       hookBus,
       authResolver: effectiveAuthResolver,
       silent: true,
+      agentRouter,
+      embeddingService,
     });
 
     // Mount shell middleware (e.g. React SPA) after API routes
@@ -195,6 +213,7 @@ export async function boot(opts) {
     } catch (e) {
       log(`  ${c.dim('[websocket]')} Disabled (${e.message})`);
     }
+
     log();
 
     result.app = app;
