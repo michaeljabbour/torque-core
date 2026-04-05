@@ -43,6 +43,57 @@ export class WebSocketHub {
     }
   }
 
+  /**
+   * Inject a coordinator used to call auth interfaces declared in channel definitions.
+   * @param {object} coordinator
+   */
+  setCoordinator(coordinator) {
+    this._coordinator = coordinator;
+  }
+
+  /**
+   * Find a channel definition matching the given concrete channel name.
+   * Matches by comparing the prefix before ':' in both the channel name and definition name.
+   * e.g. 'board:abc-123' matches definition 'board:{board_id}'
+   * @param {string} channelName
+   * @returns {{ bundle, name, events, auth }|null}
+   */
+  _findChannelDef(channelName) {
+    const prefix = channelName.split(':')[0];
+    return this._channelDefs.find(def => def.name.split(':')[0] === prefix) ?? null;
+  }
+
+  /**
+   * Handle a subscribe request from a client, enforcing auth if declared.
+   * @param {object} ws
+   * @param {{ channels: Set, user: object|null }} clientData
+   * @param {string} channel
+   */
+  async _handleSubscribe(ws, clientData, channel) {
+    const def = this._findChannelDef(channel);
+    if (def?.auth && this._coordinator) {
+      const dotIdx = def.auth.indexOf('.');
+      const authBundle = def.auth.slice(0, dotIdx);
+      const authInterface = def.auth.slice(dotIdx + 1);
+      const entityId = channel.split(':')[1];
+      const args = { entityId, user: clientData.user };
+
+      const allowed = await this._coordinator.call(authBundle, authInterface, args);
+
+      if (!allowed) {
+        ws.send(JSON.stringify({ type: 'subscribe_rejected', channel, reason: 'access_denied' }));
+        return;
+      }
+    }
+
+    // Subscribe the client to the channel
+    clientData.channels.add(channel);
+    if (!this.channels.has(channel)) {
+      this.channels.set(channel, new Set());
+    }
+    this.channels.get(channel).add(ws);
+  }
+
   /** Attach to an HTTP server for WebSocket upgrade */
   async handleUpgrade(httpServer) {
     let WebSocketServer;
@@ -97,11 +148,7 @@ export class WebSocketHub {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === 'subscribe' && msg.channel) {
-          clientData.channels.add(msg.channel);
-          if (!this.channels.has(msg.channel)) {
-            this.channels.set(msg.channel, new Set());
-          }
-          this.channels.get(msg.channel).add(ws);
+          this._handleSubscribe(ws, clientData, msg.channel).catch(() => {});
         } else if (msg.type === 'unsubscribe' && msg.channel) {
           clientData.channels.delete(msg.channel);
           this.channels.get(msg.channel)?.delete(ws);

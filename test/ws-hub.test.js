@@ -159,3 +159,64 @@ describe('WebSocketHub - manifest-driven channel routing', () => {
     assert.equal(ws.sent.length, 0, 'nothing should be broadcast when no channel declarations exist');
   });
 });
+
+describe('WebSocketHub - channel auth', () => {
+  it('setCoordinator stores coordinator reference', () => {
+    const hub = new WebSocketHub(null);
+    const fakeCoordinator = {};
+    hub.setCoordinator(fakeCoordinator);
+    assert.equal(hub._coordinator, fakeCoordinator);
+  });
+
+  it('rejects subscribe when auth returns false (sends subscribe_rejected)', async () => {
+    const hub = new WebSocketHub(null);
+    const coordinator = { call: async () => false };
+    hub.setCoordinator(coordinator);
+    hub.registerChannels('boards', [
+      { name: 'board:{board_id}', events: ['boards.board.updated'], auth: 'boards.authorizeBoardAccess' },
+    ]);
+
+    const ws = createMockWs();
+    const clientData = { channels: new Set(), user: { id: 'user-1' } };
+
+    await hub._handleSubscribe(ws, clientData, 'board:abc-123');
+
+    assert.ok(!clientData.channels.has('board:abc-123'), 'client should NOT be subscribed after rejection');
+    assert.equal(ws.sent.length, 1, 'should receive exactly one message');
+    assert.equal(ws.sent[0].type, 'subscribe_rejected');
+    assert.equal(ws.sent[0].channel, 'board:abc-123');
+    assert.equal(ws.sent[0].reason, 'access_denied');
+  });
+
+  it('allows subscribe when auth returns true', async () => {
+    const hub = new WebSocketHub(null);
+    const coordinator = { call: async () => true };
+    hub.setCoordinator(coordinator);
+    hub.registerChannels('boards', [
+      { name: 'board:{board_id}', events: ['boards.board.updated'], auth: 'boards.authorizeBoardAccess' },
+    ]);
+
+    const ws = createMockWs();
+    const clientData = { channels: new Set(), user: { id: 'user-1' } };
+
+    await hub._handleSubscribe(ws, clientData, 'board:abc-123');
+
+    assert.ok(clientData.channels.has('board:abc-123'), 'client should be subscribed after auth success');
+    assert.equal(ws.sent.length, 0, 'no rejection message should be sent');
+  });
+
+  it('allows subscribe when no auth declared', async () => {
+    const hub = new WebSocketHub(null);
+    hub.registerChannels('boards', [
+      { name: 'workspace:{workspace_id}', events: ['boards.board.created'], auth: null },
+    ]);
+
+    const ws = createMockWs();
+    const clientData = { channels: new Set(), user: null };
+
+    await hub._handleSubscribe(ws, clientData, 'workspace:ws-1');
+
+    assert.ok(clientData.channels.has('workspace:ws-1'), 'client should be subscribed when no auth required');
+    assert.equal(ws.sent.length, 0, 'no rejection message should be sent');
+  });
+});
