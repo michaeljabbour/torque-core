@@ -126,6 +126,25 @@ describe('WebSocketHub - manifest-driven channel routing', () => {
     assert.ok(ws.sent.length >= 2, 'wildcard should match kanban.card.moved too');
   });
 
+  it('sends event only once per client even when multiple defs match the same channel', () => {
+    const eventBus = createMockEventBus();
+    const hub = new WebSocketHub(eventBus);
+    // Two defs from different bundles both match 'kanban.card.moved' and resolve to the same channel
+    hub.registerChannels('kanban', [{ name: 'board:{board_id}', events: ['kanban.card.*'], auth: null }]);
+    hub.registerChannels('analytics', [{ name: 'board:{board_id}', events: ['kanban.*'], auth: null }]);
+
+    const ws1 = createMockWs();
+    const ws2 = createMockWs();
+    hub.channels.set('board:abc-123', new Set([ws1, ws2]));
+    hub.clients.set(ws1, { channels: new Set(['board:abc-123']), user: null });
+    hub.clients.set(ws2, { channels: new Set(['board:abc-123']), user: null });
+
+    eventBus.emit('kanban.card.moved', { board_id: 'abc-123' });
+
+    assert.equal(ws1.sent.length, 1, 'ws1 should receive exactly once');
+    assert.equal(ws2.sent.length, 1, 'ws2 should receive exactly once');
+  });
+
   it('broadcasts nothing with no channel declarations', () => {
     const eventBus = createMockEventBus();
     const hub = new WebSocketHub(eventBus);

@@ -129,7 +129,7 @@ export class WebSocketHub {
     if (this._channelDefs.length === 0) return;
 
     const msg = JSON.stringify({ type: 'event', event: eventName, data: payload });
-    const sent = new Set(); // track (channelName, ws) pairs to avoid duplicates
+    const sent = new Map(); // channelName → Set<ws> — uses object identity for ws, not string coercion
 
     for (const def of this._channelDefs) {
       if (!this._eventMatchesPatterns(eventName, def.events)) continue;
@@ -138,10 +138,12 @@ export class WebSocketHub {
       const subs = this.channels.get(channelName);
       if (!subs) continue;
 
+      if (!sent.has(channelName)) sent.set(channelName, new Set());
+      const channelSent = sent.get(channelName);
+
       for (const ws of subs) {
-        const key = `${channelName}::${ws}`;
-        if (sent.has(key)) continue;
-        sent.add(key);
+        if (channelSent.has(ws)) continue; // object identity, not string coercion
+        channelSent.add(ws);
         try { ws.send(msg); } catch {}
       }
     }
