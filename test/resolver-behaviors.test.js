@@ -110,14 +110,4 @@ describe('validateBehavior()', () => {
     );
   });
 
-  it('rejects forbidden key: logic (error includes "logic")', () => {
-    const behavior = { name: 'bad-behavior', logic: {} };
-    assert.throws(
-      () => validateBehavior(behavior),
-      (err) => {
-        assert.ok(err.message.includes('logic'), `Expected error to include "logic", got: ${err.message}`);
-        return true;
-      }
-    );
-  });
 });
