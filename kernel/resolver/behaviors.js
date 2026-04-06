@@ -82,6 +82,10 @@ function normalizeSubscribeEntry(entry) {
  * @param {Array<string|{event: string}>} subscribes - The list of subscribe entries.
  * @param {Array<string|{name: string}>} bundlePublishes - The list of published events.
  * @returns {{expanded: string[], warnings: string[]}} The expanded events and warnings.
+ *
+ * @note Patterns with multiple wildcards (e.g., `*.*.created`) are partially supported:
+ *   only the first `*` is expanded; subsequent wildcards are silently treated as literals.
+ *   A warning is added to the result when multiple wildcards are detected.
  */
 export function expandEventWildcards(subscribes, bundlePublishes) {
   const expanded = [];
@@ -251,6 +255,7 @@ export function resolveBehaviors(manifest, behaviors) {
 
     // config — accumulate with later-behavior-wins via deepMergeDefaults
     if (behavior.config !== undefined) {
+      // target wins: later behavior.config overrides accumulatedConfig (behavior.config is target)
       accumulatedConfig = deepMergeDefaults(behavior.config, accumulatedConfig);
       hasConfig = true;
     }
