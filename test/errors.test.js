@@ -231,13 +231,14 @@ describe('Error classes exported from @torquedev/core index', () => {
     assert.ok(keys.includes('AgentRouter'), 'AgentRouter not exported');
   });
 
-  it('total exports are 17 (6 existing + 5 errors + 6 IDD primitives)', async () => {
+  it('total exports are 20 (6 existing + 5 errors + 6 IDD primitives + 3 behavior resolution)', async () => {
     const mod = await import('../index.js');
     const keys = Object.keys(mod);
     // 6 existing: Registry, ScopedCoordinator, Resolver, HookBus, WebSocketHub, JobRunner
     // 5 errors: CircularDependencyError, ContractViolationError, BundleNotFoundError,
     //           InterfaceNotFoundError, DependencyViolationError
     // 6 IDD primitives: Intent, Behavior, Context, AgentRouter, AgentCoordinator, ClaudeRuntime
-    assert.equal(keys.length, 17, `Expected 17 exports, got ${keys.length}: ${keys.join(', ')}`);
+    // 3 behavior resolution: resolveBehaviors, validateBehavior, expandEventWildcards
+    assert.equal(keys.length, 20, `Expected 20 exports, got ${keys.length}: ${keys.join(', ')}`);
   });
 });

@@ -1,5 +1,6 @@
 export { Registry, ScopedCoordinator } from './kernel/registry.js';
 export { Resolver } from './kernel/resolver.js';
+export { resolveBehaviors, validateBehavior, expandEventWildcards } from './kernel/resolver/behaviors.js';
 export { HookBus } from './kernel/hooks.js';
 export { WebSocketHub } from './kernel/ws-hub.js';
 export { JobRunner } from './kernel/job-runner.js';
