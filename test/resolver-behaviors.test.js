@@ -1,15 +1,15 @@
 /**
- * Tests for validateBehavior() (task-1 RED phase).
- * Verifies that validateBehavior() accepts valid behaviors, rejects behaviors
- * missing required keys, and rejects forbidden keys/nested keys.
- *
- * Expected: FAIL — `Cannot find module '../kernel/resolver/behaviors.js'`
+ * Tests for resolver/behaviors.js.
+ * Covers two functions:
+ *   - validateBehavior(): accepts valid behaviors, rejects behaviors missing
+ *     required keys, and rejects forbidden keys/nested keys.
+ *   - expandEventWildcards(): resolves wildcard subscribe patterns against a
+ *     bundle's published event list, returning expanded events and warnings.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as behaviors from '../kernel/resolver/behaviors.js';
-const { validateBehavior } = behaviors;
-const expandEventWildcards = behaviors.expandEventWildcards;
+const { validateBehavior, expandEventWildcards } = behaviors;
 
 describe('validateBehavior()', () => {
   it('accepts a valid behavior with all allowed keys', () => {
@@ -165,6 +165,7 @@ describe('expandEventWildcards()', () => {
   it('handles empty publishes list returning warning for wildcard', () => {
     const { warnings } = expandEventWildcards(['*.created'], []);
     assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes('*.created'), `Warning should reference '*.created', got: ${warnings[0]}`);
   });
 
   it('normalizes object-format subscribes to strings', () => {
