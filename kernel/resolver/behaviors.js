@@ -9,21 +9,6 @@
  * which deals with instance-level behavior objects in the IDD system.
  */
 
-const ALLOWED_KEYS = new Set([
-  'name',
-  'version',
-  'description',
-  'extensions',
-  'hooks',
-  'gates',
-  'events',
-  'config',
-  'permissions',
-  'jobs',
-  'context',
-  'agents',
-]);
-
 const FORBIDDEN_KEYS = new Set([
   'schema',
   'routes',
@@ -71,6 +56,7 @@ export function expandEventWildcards(subscribes, bundlePublishes) {
         expanded.push(entry);
       }
     } else {
+      // Replace only the first '*' — patterns with multiple wildcards are not supported
       const suffix = entry.replace('*', '');
       let matchCount = 0;
 
