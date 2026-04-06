@@ -292,9 +292,13 @@ export function resolveBehaviors(manifest, behaviors) {
     m.config = deepMergeDefaults(m.config || {}, accumulatedConfig);
   }
 
-  // Apply accumulated behavior permissions as defaults — manifest wins
+  // Apply accumulated behavior permissions as defaults — manifest wins.
+  // Note: permissions may be an array of permission objects (not a plain object),
+  // so we do NOT apply || {} here — that would coerce undefined to {} and cause
+  // deepMergeDefaults to return {} instead of the behavior's array. We treat
+  // undefined and null both as "not set" by using ?? undefined to normalise null.
   if (hasPermissions) {
-    m.permissions = deepMergeDefaults(m.permissions, accumulatedPermissions);
+    m.permissions = deepMergeDefaults(m.permissions ?? undefined, accumulatedPermissions);
   }
 
   // Calculate deltas

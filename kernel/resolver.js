@@ -6,7 +6,7 @@ import { resolvePath } from './resolver/path.js';
 import { readLock, writeLock, getLockEntry, setLockEntry, computeFileHash } from './resolver/lock.js';
 import { ensureCacheDir, cachePath, isCacheFresh, isCached } from './resolver/cache.js';
 import { resolveDependencyOrder } from './resolver/deps.js';
-import { resolveBehaviors, validateBehavior } from './resolver/behaviors.js';
+import { resolveBehaviors } from './resolver/behaviors.js';
 
 export class Resolver {
   /**
@@ -243,7 +243,7 @@ export class Resolver {
       const manifest = yaml.load(readFileSync(manifestPath, 'utf8'));
       const loadedBehaviors = [];
       for (const behaviorName of behaviors) {
-        const behavior = this._loadBehavior(behaviorName, dir, log);
+        const behavior = this._loadBehavior(behaviorName);
         loadedBehaviors.push(behavior);
       }
 
@@ -274,7 +274,10 @@ export class Resolver {
    *   (d) ../torque-foundation/behaviors/<name>.yaml  (sibling dir)
    * Returns parsed YAML object or throws with all searched paths listed.
    */
-  _loadBehavior(behaviorName, bundleDir, log) {
+  _loadBehavior(behaviorName) {
+    // All paths are relative to process.cwd() (the app root),
+    // not the bundle directory. This allows app-local and sibling
+    // torque-foundation behaviors to be shared across all bundles.
     const searchPaths = [
       join('behaviors', `${behaviorName}.yml`),
       join('behaviors', `${behaviorName}.yaml`),
