@@ -7,7 +7,9 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBehavior, expandEventWildcards } from '../kernel/resolver/behaviors.js';
+import * as behaviors from '../kernel/resolver/behaviors.js';
+const { validateBehavior } = behaviors;
+const expandEventWildcards = behaviors.expandEventWildcards;
 
 describe('validateBehavior()', () => {
   it('accepts a valid behavior with all allowed keys', () => {
