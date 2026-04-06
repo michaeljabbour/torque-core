@@ -180,6 +180,24 @@ describe('expandEventWildcards()', () => {
     const count = expanded.filter((e) => e === 'broker.partner.created').length;
     assert.equal(count, 1, 'broker.partner.created should appear only once');
   });
+
+  it('throws TypeError (not plain Error) for invalid subscribe entry', () => {
+    assert.throws(
+      () => expandEventWildcards([null], bundlePublishes),
+      (err) => {
+        assert.ok(err instanceof TypeError, `Expected TypeError, got: ${err.constructor.name}`);
+        return true;
+      }
+    );
+  });
+
+  it('returns a warning specifically about multiple wildcards for patterns with more than one *', () => {
+    const { warnings } = expandEventWildcards(['*.*.created'], bundlePublishes);
+    assert.ok(
+      warnings.some((w) => w.toLowerCase().includes('multiple wildcard')),
+      `Expected a warning about multiple wildcards, got: ${JSON.stringify(warnings)}`
+    );
+  });
 });
 
 describe('resolveBehaviors()', () => {

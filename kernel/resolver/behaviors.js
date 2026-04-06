@@ -64,7 +64,7 @@ function deepMergeDefaults(target, source) {
  *
  * @param {string|{event: string}} entry - The subscribe entry to normalize.
  * @returns {string} The normalized event name.
- * @throws {Error} If the entry is not a string or an object with an event property.
+ * @throws {TypeError} If the entry is not a string or an object with an event property.
  */
 function normalizeSubscribeEntry(entry) {
   if (typeof entry === 'string') {
@@ -73,7 +73,7 @@ function normalizeSubscribeEntry(entry) {
   if (entry !== null && typeof entry === 'object' && typeof entry.event === 'string') {
     return entry.event;
   }
-  throw new Error('Invalid subscribe entry');
+  throw new TypeError('Invalid subscribe entry');
 }
 
 /**
@@ -98,6 +98,9 @@ export function expandEventWildcards(subscribes, bundlePublishes) {
       }
     } else {
       // Replace only the first '*' — patterns with multiple wildcards are not supported
+      if (entry.split('*').length > 2) {
+        warnings.push(`${entry} contains multiple wildcards — only the first is used`);
+      }
       const suffix = entry.replace('*', '');
       let matchCount = 0;
 
