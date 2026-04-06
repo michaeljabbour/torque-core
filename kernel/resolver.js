@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { dirname, resolve, join, basename } from 'path';
 import yaml from 'js-yaml';
 import { resolveGit, updateGit } from './resolver/git.js';
@@ -6,6 +6,7 @@ import { resolvePath } from './resolver/path.js';
 import { readLock, writeLock, getLockEntry, setLockEntry, computeFileHash } from './resolver/lock.js';
 import { ensureCacheDir, cachePath, isCacheFresh, isCached } from './resolver/cache.js';
 import { resolveDependencyOrder } from './resolver/deps.js';
+import { resolveBehaviors, validateBehavior } from './resolver/behaviors.js';
 
 export class Resolver {
   /**
@@ -191,6 +192,8 @@ export class Resolver {
     // Item 1: Resolve includes: — bundles that include other bundles get implicit depends_on
     this._resolveIncludes(bundleDirs, enabledBundles, log);
 
+    this._resolveBundleBehaviors(plan, bundleDirs, enabledBundles, log);
+
     // Phase 3: Read manifests and topological sort (must be serial — needs all dirs populated)
     const sorted = resolveDependencyOrder(bundleDirs, enabledBundles);
     log(`[resolver] Boot order: ${sorted.join(' -> ')}`);
@@ -218,6 +221,76 @@ export class Resolver {
         }
       }
     }
+  }
+
+  /**
+   * Resolve behaviors declared in the mount plan into bundle manifests.
+   * For each enabled bundle that declares behaviors, loads each behavior YAML,
+   * applies resolveBehaviors(), and writes the enriched manifest back to disk.
+   */
+  _resolveBundleBehaviors(plan, bundleDirs, enabledBundles, log) {
+    for (const name of enabledBundles) {
+      const bundleConfig = plan.bundles?.[name] || {};
+      const behaviors = bundleConfig.behaviors;
+      if (!behaviors || behaviors.length === 0) continue;
+
+      const dir = bundleDirs[name];
+      if (!dir) continue;
+
+      const manifestPath = join(dir, 'manifest.yml');
+      if (!existsSync(manifestPath)) continue;
+
+      const manifest = yaml.load(readFileSync(manifestPath, 'utf8'));
+      const loadedBehaviors = [];
+      for (const behaviorName of behaviors) {
+        const behavior = this._loadBehavior(behaviorName, dir, log);
+        loadedBehaviors.push(behavior);
+      }
+
+      const { manifest: resolved, warnings, deltas } = resolveBehaviors(manifest, loadedBehaviors);
+
+      writeFileSync(manifestPath, yaml.dump(resolved, { lineWidth: -1 }), 'utf8');
+
+      const deltaEntries = Object.entries(deltas).filter(([, v]) => v > 0);
+      if (deltaEntries.length > 0) {
+        const deltaSummary = deltaEntries.map(([k, v]) => `+${v} ${k}`).join(', ');
+        log(`[resolver] ${name}: behaviors applied [${behaviors.join(', ')}] (${deltaSummary})`);
+      } else {
+        log(`[resolver] ${name}: behaviors applied [${behaviors.join(', ')}]`);
+      }
+
+      for (const warning of warnings) {
+        log(`[resolver] WARNING: ${name}: ${warning}`);
+      }
+    }
+  }
+
+  /**
+   * Load a behavior YAML by name, searching several well-known locations.
+   * Search order:
+   *   (a) behaviors/<name>.yml        (app-local)
+   *   (b) behaviors/<name>.yaml       (app-local)
+   *   (c) ../torque-foundation/behaviors/<name>.yml   (sibling dir)
+   *   (d) ../torque-foundation/behaviors/<name>.yaml  (sibling dir)
+   * Returns parsed YAML object or throws with all searched paths listed.
+   */
+  _loadBehavior(behaviorName, bundleDir, log) {
+    const searchPaths = [
+      join('behaviors', `${behaviorName}.yml`),
+      join('behaviors', `${behaviorName}.yaml`),
+      join('..', 'torque-foundation', 'behaviors', `${behaviorName}.yml`),
+      join('..', 'torque-foundation', 'behaviors', `${behaviorName}.yaml`),
+    ];
+
+    for (const p of searchPaths) {
+      if (existsSync(p)) {
+        return yaml.load(readFileSync(p, 'utf8'));
+      }
+    }
+
+    throw new Error(
+      `Behavior '${behaviorName}' not found. Searched:\n${searchPaths.map(p => `  ${p}`).join('\n')}`
+    );
   }
 
   /**
